@@ -12,6 +12,11 @@
 
 唯一失败仍是动态 import 远程 ESM。运行时真相：engine JavaScriptCore，platform ios，nodeCompatibilityBaseline 20.0.0，process.version v20.0.0，versions.scripting "node-compat-2"——JSC 之上仿 Node 20 的兼容层。platform=ios，arch=arm64，title=browser，browser=true；argv=[]；cwd()=/；process.binding 是函数；hrtime/nextTick 都能用。scripting 模块导出 219 个，globalThis 键名 326 个。
 
+## v1.7 新增（按钮移到最底下）
+
+- **状态行 + 三个按钮移到页面最底下**（结果清单之后）：顶上的按钮可能够不着，翻到底就能点到
+- 网页框高度 500 → 400，少占点地方
+
 ## v1.6 新增（交互诊断：状态行 + 点按计数）
 
 - **点按计数器**：顶上一个“点我测试”按钮，点一下数字就变——证明按钮本身能不能收到点击

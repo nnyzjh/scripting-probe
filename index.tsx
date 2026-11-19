@@ -1,10 +1,7 @@
-// Scripting 能力边界探测 v1.6（index.tsx）
-// v1.5 已确认：moduleLoader 是 "CommonJS with AST ESM lowering"——这就是远程 ESM
-// import 永远失败的原因；WebViewController、Pasteboard、Dialog 三个全局都存在，
-// 但按钮点下去还是“无交互”。
-// v1.6 不再猜：加一个点按计数器按钮（点一下数字就变，证明按钮本身能收到点击），
-// 再加一行状态文字——复制/加载每一步的结果都直接写在屏幕上，不靠 Dialog 弹窗，
-// 这样下次截图就能看出来到底是哪一步没反应。
+// Scripting 能力边界探测 v1.7（index.tsx）
+// v1.6 的状态行 + 点按计数器还没验出结果——Noah 说按钮可能放太高了，点不到。
+// v1.7：把状态行和三个按钮都移到页面最底下（结果清单之后），上面只留标题、
+// 通过数和网页框。往下翻到底就能点到，不用再够顶上的按钮。
 
 import { Navigation, NavigationStack, VStack, Spacer, Text, Button, Script, WebView, useMemo, useEffect, useState } from "scripting"
 
@@ -353,12 +350,8 @@ function App({ results }: { results: Result[] }) {
       <VStack>
         <Text font="largeTitle" fontWeight={"bold"}>边界探测</Text>
         <Text font="caption">{pass}/{results.length} 通过。FAIL 也是答案，说明这条路走不通。</Text>
-        <Text font="caption">状态：{status}</Text>
-        <Button title={"点我测试（已点 " + taps + " 次）"} action={() => setTaps(taps + 1)} />
-        <Button title="复制完整清单" action={doCopy} />
-        <Button title="重新加载全文" action={reloadFullText} />
         {controller ? (
-          <WebView controller={controller} frame={{ height: 500 }} />
+          <WebView controller={controller} frame={{ height: 400 }} />
         ) : (
           <Text font="caption">WebViewController 不存在，全文网页打不开，往下翻看分行清单。</Text>
         )}
@@ -367,6 +360,10 @@ function App({ results }: { results: Result[] }) {
           <Row r={r} />
         ))}
         <Spacer />
+        <Text font="caption">状态：{status}</Text>
+        <Button title={"点我测试（已点 " + taps + " 次）"} action={() => setTaps(taps + 1)} />
+        <Button title="复制完整清单" action={doCopy} />
+        <Button title="重新加载全文" action={reloadFullText} />
         <Text font="caption">上面的网页可以滑动，长按全选复制发我；复制按钮是备用的。</Text>
       </VStack>
     </NavigationStack>
