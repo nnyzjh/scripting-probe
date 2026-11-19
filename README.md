@@ -12,6 +12,11 @@
 
 唯一失败仍是动态 import 远程 ESM。运行时真相：engine JavaScriptCore，platform ios，nodeCompatibilityBaseline 20.0.0，process.version v20.0.0，versions.scripting "node-compat-2"——JSC 之上仿 Node 20 的兼容层。platform=ios，arch=arm64，title=browser，browser=true；argv=[]；cwd()=/；process.binding 是函数；hrtime/nextTick 都能用。scripting 模块导出 219 个，globalThis 键名 326 个。
 
+## v2.0 新增（探 Python）
+
+- **Python.run 探针**：不用改入口，直接用 JS 里的 `Python.run` 跑 probe.py 的 5 项（版本、zipfile、urllib 联网、写文件、import requests），结果回流到界面里，照样自动复制
+- Python 包、npm 包、Shell 环境在“更多”里是公开功能，不是藏着的；requests 若没装，去“Python 包”里装
+
 ## v1.9 新增（打开就自动复制）
 
 - **打开就自动复制全文**：不用点任何按钮，跑完直接去聊天里粘贴；复制和网页加载各一行状态，哪步行哪步不行第一屏就看得见

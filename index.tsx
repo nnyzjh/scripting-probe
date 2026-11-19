@@ -1,8 +1,9 @@
-// Scripting 能力边界探测 v1.9（index.tsx）
-// v1.8 刚推 1 分钟 Noah 就截了图，大概率还跑着缓存里的旧版。
-// 但按钮三番五次没反应，不能再靠点了。v1.9：打开就自动复制——
-// 不用点任何按钮，跑完直接去聊天里粘贴。复制和网页加载各一行状态，
-// 哪步行哪步不行，打开第一屏就看得见。
+// Scripting 能力边界探测 v2.0（index.tsx）
+// v1.9 完整清单已拿到：JSC + Node 20 兼容层，moduleLoader 是 CommonJS + AST ESM lowering，
+// window/self 不存在，Python 环境变量全套都在，全局里还有 Shell、SSHClient、SQLite、
+// Python、HttpServer、GitHub、LanguageModelSession。
+// v2.0 探 Python：不用改入口，直接用 JS 里的 Python.run 跑 probe.py 的内容，
+// 结果回流到界面里，照样自动复制。Python 包在“更多”里是公开功能，不是藏着的。
 
 import { Navigation, NavigationStack, VStack, Spacer, Text, Button, Script, WebView, useMemo, useEffect, useState } from "scripting"
 
@@ -14,11 +15,66 @@ declare const module: any
 declare const WebViewController: any
 declare const Pasteboard: any
 declare const Dialog: any
+declare const Python: any
 
 type Result = { name: string; pass: boolean; detail: string }
 
 const JSZIP_URL = "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"
 const RAW_JSON_URL = "https://raw.githubusercontent.com/nnyzjh/cloudflare-scripting/main/script.json"
+
+// Python 探针（probe.py 的内容）：经 JS 的 Python.run 执行，结果回流到界面里
+const PYTHON_PROBE = `import sys
+import json
+import io
+import zipfile
+import urllib.request
+
+results = []
+
+def check(name, fn):
+    try:
+        detail = fn()
+        results.append((name, True, str(detail)))
+    except Exception as e:
+        results.append((name, False, type(e).__name__ + ": " + str(e)))
+
+def _version():
+    return sys.version.split()[0]
+
+def _zip():
+    buf = io.BytesIO()
+    with zipfile.ZipFile(buf, "w") as z:
+        z.writestr("hello.txt", "hi")
+    buf.seek(0)
+    with zipfile.ZipFile(buf) as z:
+        return z.read("hello.txt").decode()
+
+def _net():
+    url = "https://raw.githubusercontent.com/nnyzjh/cloudflare-scripting/main/script.json"
+    with urllib.request.urlopen(url, timeout=15) as r:
+        return "HTTP " + str(r.status) + " " + str(len(r.read())) + "B"
+
+def _write():
+    with open("probe_test.txt", "w") as f:
+        f.write("ok")
+    with open("probe_test.txt") as f:
+        return f.read()
+
+def _requests():
+    import requests
+    return requests.__version__
+
+check("Python 版本", _version)
+check("zipfile 解压/压缩", _zip)
+check("urllib 联网", _net)
+check("写文件再读回", _write)
+check("import requests", _requests)
+
+ok = sum(1 for _, passed, _ in results if passed)
+print("Python 探测：" + str(ok) + "/" + str(len(results)) + " 通过")
+for name, passed, detail in results:
+    print(("PASS " if passed else "FAIL ") + name + " - " + detail)
+`
 
 let JSZipCtor: any = null
 
@@ -302,6 +358,20 @@ async function runTests(): Promise<Result[]> {
   } catch (e) {
     out.push({ name: "env *", pass: false, detail: String(e) })
   }
+
+  // ---- v2.0 新增：探 Python（经 JS 的 Python.run，不用改入口） ----
+  out.push(await one("Python 存在", () => {
+    if (typeof Python === "undefined") throw new Error("没有这个全局")
+    return "typeof=" + typeof Python + " run=" + typeof (Python as any).run
+  }))
+
+  out.push(await one("Python.run 探针", async () => {
+    if (typeof Python === "undefined") throw new Error("没有 Python 全局")
+    const r = await Python.run(PYTHON_PROBE)
+    const output = String((r as any).output || "")
+    if ((r as any).exitCode !== 0) throw new Error("exitCode=" + (r as any).exitCode + " " + cap(output, 800))
+    return cap(output, 1500)
+  }))
 
   return out
 }
