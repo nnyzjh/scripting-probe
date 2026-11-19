@@ -1,9 +1,10 @@
-// Scripting 能力边界探测 v1.2（index.tsx）
-// v1.1 结果 11/12：JSZip、require 都通了，只剩远程 ESM import 不认 URL。
-// v1.2 深挖运行时本身：process.scriptingCapabilities 全文、process 的版本/平台/
-// 环境变量键名（只列键名，不碰值）、scripting 模块的导出清单、globalThis 键名。
+// Scripting 能力边界探测 v1.3（index.tsx）
+// v1.2 结果 22/23：运行时是 JavaScriptCore + 仿 Node 20 兼容层（node-compat-2）。
+// v1.3 把之前被截断的完整清单展开：scriptingCapabilities 按 key 拆行，
+// scripting 的 219 个导出、globalThis 的 326 个键名、env 键名全部按 12 个一组分行显示，
+// 再加一个“复制完整清单”按钮，一键拷走发给我。
 
-import { Navigation, NavigationStack, VStack, Spacer, Text, Script } from "scripting"
+import { Navigation, NavigationStack, VStack, Spacer, Text, Button, Script } from "scripting"
 
 type Result = { name: string; pass: boolean; detail: string }
 
@@ -22,6 +23,12 @@ function jdump(v: any, n = 1200): string {
   } catch (e) {
     return "无法序列化：" + String(e)
   }
+}
+
+function chunk(arr: string[], size: number): string[][] {
+  const out: string[][] = []
+  for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size))
+  return out
 }
 
 async function one(name: string, fn: () => any): Promise<Result> {
@@ -158,7 +165,6 @@ async function runTests(): Promise<Result[]> {
     return "中文编解码正常"
   }))
 
-  // ---- v1.2 新增：深挖运行时 ----
   const P = process as any
 
   // 13. scriptingCapabilities 全文
@@ -227,7 +233,66 @@ async function runTests(): Promise<Result[]> {
     return "回调跑了"
   }))
 
+  // ---- v1.3 新增：展开完整清单 ----
+  // scriptingCapabilities 按 key 拆行
+  try {
+    const caps = P.scriptingCapabilities
+    if (caps && typeof caps === "object") {
+      for (const k of Object.keys(caps)) {
+        out.push({ name: "cap." + k, pass: true, detail: jdump((caps as any)[k], 600) })
+      }
+    } else {
+      out.push({ name: "cap.*", pass: false, detail: "不是对象：" + typeof caps })
+    }
+  } catch (e) {
+    out.push({ name: "cap.*", pass: false, detail: String(e) })
+  }
+
+  // scripting 导出全清单，12 个一组
+  try {
+    const m: any = await import("scripting")
+    const keys = Object.keys(m).sort()
+    const groups = chunk(keys, 12)
+    groups.forEach((g, i) => {
+      out.push({ name: "导出 " + (i + 1) + "/" + groups.length, pass: true, detail: g.join(", ") })
+    })
+  } catch (e) {
+    out.push({ name: "导出 *", pass: false, detail: String(e) })
+  }
+
+  // globalThis 键名全清单，12 个一组
+  try {
+    const keys = Object.keys(globalThis).sort()
+    const groups = chunk(keys, 12)
+    groups.forEach((g, i) => {
+      out.push({ name: "全局 " + (i + 1) + "/" + groups.length, pass: true, detail: g.join(", ") })
+    })
+  } catch (e) {
+    out.push({ name: "全局 *", pass: false, detail: String(e) })
+  }
+
+  // env 键名全清单，12 个一组（只列键名，不碰值）
+  try {
+    const keys = Object.keys(P.env || {}).sort()
+    const groups = chunk(keys, 12)
+    groups.forEach((g, i) => {
+      out.push({ name: "env " + (i + 1) + "/" + groups.length, pass: true, detail: g.join(", ") })
+    })
+  } catch (e) {
+    out.push({ name: "env *", pass: false, detail: String(e) })
+  }
+
   return out
+}
+
+async function copyAll(results: Result[]) {
+  const text = results.map((r) => (r.pass ? "✅ " : "❌ ") + r.name + "\n" + r.detail).join("\n\n")
+  try {
+    await Pasteboard.setString(text)
+    await Dialog.alert({ title: "已复制", message: "完整清单已在剪贴板，粘贴到备忘录或直接发给我就行。" })
+  } catch (e) {
+    await Dialog.alert({ title: "复制失败", message: String(e) })
+  }
 }
 
 function Row({ r }: { r: Result }) {
@@ -246,12 +311,13 @@ function App({ results }: { results: Result[] }) {
       <VStack>
         <Text font="largeTitle" fontWeight={"bold"}>边界探测</Text>
         <Text font="caption">{pass}/{results.length} 通过。FAIL 也是答案，说明这条路走不通。</Text>
+        <Button title="复制完整清单" action={() => copyAll(results)} />
         <Spacer />
         {results.map((r) => (
           <Row r={r} />
         ))}
         <Spacer />
-        <Text font="caption">把结果截图发我，我再帮你判断哪条路能走。</Text>
+        <Text font="caption">点上面的按钮复制全部结果发我，不用一张张截图了。</Text>
       </VStack>
     </NavigationStack>
   )

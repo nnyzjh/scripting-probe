@@ -8,19 +8,17 @@
 
 唯一失败：动态 import 远程 ESM（Module "https://..." not found，加载器只认本地文件）。
 
-## v1.2 新增（深挖运行时，共 23 项）
+## v1.2 结果（真机实测 22/23）
 
-13. **scriptingCapabilities**：全文打出来，看官方到底开放了哪些能力
-14. **process.version**：版本 + versions 表，看引擎是什么版本
-15. **platform/arch/title**：平台、架构、标题、browser 字段的值
-16. **process.env 键名**：只列键名，不碰值
-17. **process.argv**：启动参数
-18. **process.cwd()**：当前工作目录
-19. **process.binding**：只看类型，不调用
-20. **scripting 模块导出**：`import("scripting")` 的全部导出清单，看 API 全貌
-21. **globalThis 键名**：全局上都挂了什么
-22. **process.hrtime()**：高精度时间能不能调
-23. **process.nextTick 执行**：回调跑不跑
+唯一失败仍是动态 import 远程 ESM。运行时真相：engine JavaScriptCore，platform ios，nodeCompatibilityBaseline 20.0.0，process.version v20.0.0，versions.scripting "node-compat-2"——JSC 之上仿 Node 20 的兼容层。platform=ios，arch=arm64，title=browser，browser=true；argv=[]；cwd()=/；process.binding 是函数；hrtime/nextTick 都能用。scripting 模块导出 219 个，globalThis 键名 326 个。
+
+## v1.3 新增（展开完整清单）
+
+- **scriptingCapabilities 按 key 拆行**：每个顶层 key 一行，不再截断
+- **导出全清单**：219 个导出名，12 个一组分行显示
+- **全局全清单**：326 个 globalThis 键名，12 个一组分行显示
+- **env 全清单**：环境变量键名（只列键名，不碰值），12 个一组分行显示
+- **复制完整清单按钮**：点一下把全部结果拷进剪贴板，不用一张张截图
 
 ## 测什么（index.tsx，v1.0/v1.1 共 12 项）
 
