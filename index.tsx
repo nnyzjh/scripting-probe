@@ -1,13 +1,12 @@
-// Scripting 能力边界探测 v1.5（index.tsx）
-// v1.2 结果 22/23：运行时是 JavaScriptCore + 仿 Node 20 兼容层（node-compat-2）。
-// v1.3 把完整清单展开：scriptingCapabilities 按 key 拆行，导出 219 个、全局 326 个、
-// env 键名全部按 12 个一组分行显示。
-// v1.4 的教训：全屏 present 弹新窗口点着没反应，复制按钮也没反应。
-// v1.5：全文改成内嵌在页面里的 WebView（不用弹窗口），另加两项探测——
-// WebViewController、Pasteboard、Dialog 到底存不存在，失败要在界面上看得见，
-// 不再靠日志猜。URL import 的红字改成把 URL 放变量里，编辑器不再报错。
+// Scripting 能力边界探测 v1.6（index.tsx）
+// v1.5 已确认：moduleLoader 是 "CommonJS with AST ESM lowering"——这就是远程 ESM
+// import 永远失败的原因；WebViewController、Pasteboard、Dialog 三个全局都存在，
+// 但按钮点下去还是“无交互”。
+// v1.6 不再猜：加一个点按计数器按钮（点一下数字就变，证明按钮本身能收到点击），
+// 再加一行状态文字——复制/加载每一步的结果都直接写在屏幕上，不靠 Dialog 弹窗，
+// 这样下次截图就能看出来到底是哪一步没反应。
 
-import { Navigation, NavigationStack, VStack, Spacer, Text, Button, Script, WebView, useMemo, useEffect } from "scripting"
+import { Navigation, NavigationStack, VStack, Spacer, Text, Button, Script, WebView, useMemo, useEffect, useState } from "scripting"
 
 // 编辑器的类型检查器不认识这几个全局，但运行时它们都存在（v1.2 实测通过），
 // 只是类型声明里没有。declare 只影响编辑器显示，编译后不存在，不影响运行。
@@ -317,46 +316,36 @@ function buildFullText(results: Result[]): string {
   return results.map((r) => (r.pass ? "✅ " : "❌ ") + r.name + "\n" + r.detail).join("\n\n")
 }
 
-async function copyAll(results: Result[]) {
-  const text = buildFullText(results)
-  try {
-    await Pasteboard.setString(text)
-    await Dialog.alert({ title: "已复制", message: "完整清单已在剪贴板，粘贴到备忘录或直接发给我就行。" })
-  } catch (e) {
-    await Dialog.alert({ title: "复制失败", message: String(e) })
-  }
-}
-
-// 全文 HTML（内嵌网页用，不再弹新窗口——v1.4 的全屏 present 点着没反应）
-function buildFullHtml(results: Result[]): string {
-  return "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>body{font-family:monospace;font-size:13px;white-space:pre-wrap;word-break:break-word;padding:12px}</style></head><body>" + escapeHtml(buildFullText(results)) + "</body></html>"
-}
-
-function Row({ r }: { r: Result }) {
-  return (
-    <VStack>
-      <Text font="headline">{r.pass ? "✅ " : "❌ "}{r.name}</Text>
-      <Text font="caption">{r.detail}</Text>
-    </VStack>
-  )
-}
-
 function App({ results }: { results: Result[] }) {
   const pass = results.filter((r) => r.pass).length
+  const [taps, setTaps] = useState(0)
+  const [status, setStatus] = useState("还没点过按钮")
   const html = useMemo(() => buildFullHtml(results), [results])
   const controller = useMemo(() => {
     if (typeof WebViewController === "undefined") return null
     return new WebViewController()
   }, [])
   useEffect(() => {
-    if (controller) controller.loadHTML(html)
+    if (!controller) { setStatus("WebViewController 不存在"); return }
+    controller.loadHTML(html).then((ok) => setStatus(ok ? "网页已加载" : "网页加载返回 false")).catch((e) => setStatus("网页加载失败：" + String(e)))
   }, [controller, html])
+  async function doCopy() {
+    setStatus("正在写剪贴板…")
+    try {
+      await Pasteboard.setString(buildFullText(results))
+      setStatus("已复制，去别处粘贴试试")
+    } catch (e) {
+      setStatus("复制失败：" + String(e))
+    }
+  }
   async function reloadFullText() {
+    setStatus("正在加载网页…")
     try {
       if (!controller) throw new Error("WebViewController 不存在")
-      await controller.loadHTML(html)
+      const ok = await controller.loadHTML(html)
+      setStatus(ok ? "网页已加载" : "网页加载返回 false")
     } catch (e) {
-      await Dialog.alert({ title: "加载失败", message: String(e) })
+      setStatus("加载失败：" + String(e))
     }
   }
   return (
@@ -364,7 +353,9 @@ function App({ results }: { results: Result[] }) {
       <VStack>
         <Text font="largeTitle" fontWeight={"bold"}>边界探测</Text>
         <Text font="caption">{pass}/{results.length} 通过。FAIL 也是答案，说明这条路走不通。</Text>
-        <Button title="复制完整清单" action={() => copyAll(results)} />
+        <Text font="caption">状态：{status}</Text>
+        <Button title={"点我测试（已点 " + taps + " 次）"} action={() => setTaps(taps + 1)} />
+        <Button title="复制完整清单" action={doCopy} />
         <Button title="重新加载全文" action={reloadFullText} />
         {controller ? (
           <WebView controller={controller} frame={{ height: 500 }} />
@@ -379,6 +370,20 @@ function App({ results }: { results: Result[] }) {
         <Text font="caption">上面的网页可以滑动，长按全选复制发我；复制按钮是备用的。</Text>
       </VStack>
     </NavigationStack>
+  )
+}
+
+// 全文 HTML（内嵌网页用，不再弹新窗口——v1.4 的全屏 present 点着没反应）
+function buildFullHtml(results: Result[]): string {
+  return "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>body{font-family:monospace;font-size:13px;white-space:pre-wrap;word-break:break-word;padding:12px}</style></head><body>" + escapeHtml(buildFullText(results)) + "</body></html>"
+}
+
+function Row({ r }: { r: Result }) {
+  return (
+    <VStack>
+      <Text font="headline">{r.pass ? "✅ " : "❌ "}{r.name}</Text>
+      <Text font="caption">{r.detail}</Text>
+    </VStack>
   )
 }
 

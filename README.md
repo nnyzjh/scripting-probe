@@ -12,6 +12,12 @@
 
 唯一失败仍是动态 import 远程 ESM。运行时真相：engine JavaScriptCore，platform ios，nodeCompatibilityBaseline 20.0.0，process.version v20.0.0，versions.scripting "node-compat-2"——JSC 之上仿 Node 20 的兼容层。platform=ios，arch=arm64，title=browser，browser=true；argv=[]；cwd()=/；process.binding 是函数；hrtime/nextTick 都能用。scripting 模块导出 219 个，globalThis 键名 326 个。
 
+## v1.6 新增（交互诊断：状态行 + 点按计数）
+
+- **点按计数器**：顶上一个“点我测试”按钮，点一下数字就变——证明按钮本身能不能收到点击
+- **状态行**：复制/加载每一步的结果直接写在屏幕上（“正在写剪贴板…”/“已复制”/“复制失败：…”），不再靠 Dialog 弹窗报信
+- **已确认的事实**：WebViewController、Pasteboard、Dialog 三个全局都存在，但按钮仍无反应——问题不在它们存不存在
+
 ## v1.5 新增（内嵌网页全文 + 查按钮失灵原因）
 
 - **全文改成内嵌 WebView**：直接嵌在页面里，不再弹全屏新窗口（v1.4 的 present 点着没反应）；打开自动加载，可以滑动、长按全选复制
