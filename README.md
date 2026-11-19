@@ -12,6 +12,11 @@
 
 唯一失败仍是动态 import 远程 ESM。运行时真相：engine JavaScriptCore，platform ios，nodeCompatibilityBaseline 20.0.0，process.version v20.0.0，versions.scripting "node-compat-2"——JSC 之上仿 Node 20 的兼容层。platform=ios，arch=arm64，title=browser，browser=true；argv=[]；cwd()=/；process.binding 是函数；hrtime/nextTick 都能用。scripting 模块导出 219 个，globalThis 键名 326 个。
 
+## v1.4 新增（网页全文 + 消红字）
+
+- **打开全文按钮**：结果以网页形式全屏打开，可以滑动、长按全选复制，不靠剪贴板按钮也不靠日志
+- **编辑器红字已消**：`window`/`self`/`module` 加了 `declare` 声明（只影响编辑器显示，编译后不存在）；远程 ESM 那行加了 `// @ts-ignore`。注意：这些红字本来就是编辑器的类型检查报错，不是运行错误——运行时这些全局都存在，v1.2 实测已通过
+
 ## v1.3 新增（展开完整清单）
 
 - **scriptingCapabilities 按 key 拆行**：每个顶层 key 一行，不再截断

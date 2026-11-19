@@ -1,10 +1,18 @@
-// Scripting 能力边界探测 v1.3（index.tsx）
+// Scripting 能力边界探测 v1.4（index.tsx）
 // v1.2 结果 22/23：运行时是 JavaScriptCore + 仿 Node 20 兼容层（node-compat-2）。
-// v1.3 把之前被截断的完整清单展开：scriptingCapabilities 按 key 拆行，
-// scripting 的 219 个导出、globalThis 的 326 个键名、env 键名全部按 12 个一组分行显示，
-// 再加一个“复制完整清单”按钮，一键拷走发给我。
+// v1.3 把完整清单展开：scriptingCapabilities 按 key 拆行，导出 219 个、全局 326 个、
+// env 键名全部按 12 个一组分行显示。
+// v1.4：加“打开全文”按钮——结果以网页形式全屏打开，可以滑动、长按全选复制，
+// 不用再靠剪贴板按钮和日志；另把编辑器里那几行红色类型报错消掉（见下面的 declare）。
 
 import { Navigation, NavigationStack, VStack, Spacer, Text, Button, Script } from "scripting"
+
+// 编辑器的类型检查器不认识这几个全局，但运行时它们都存在（v1.2 实测通过），
+// 只是类型声明里没有。declare 只影响编辑器显示，编译后不存在，不影响运行。
+declare const window: any
+declare const self: any
+declare const module: any
+declare const WebViewController: any
 
 type Result = { name: string; pass: boolean; detail: string }
 
@@ -131,6 +139,7 @@ async function runTests(): Promise<Result[]> {
   }))
 
   // 9. 动态 import 远程 ESM
+  // @ts-ignore：编辑器的类型检查器解析不了 URL 模块，运行时照样跑（这项预期失败）
   out.push(await one("动态 import 远程 ESM", async () => {
     const m: any = await import("https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm")
     const C = m.default || m.JSZip
@@ -285,14 +294,31 @@ async function runTests(): Promise<Result[]> {
   return out
 }
 
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;")
+}
+
+function buildFullText(results: Result[]): string {
+  return results.map((r) => (r.pass ? "✅ " : "❌ ") + r.name + "\n" + r.detail).join("\n\n")
+}
+
 async function copyAll(results: Result[]) {
-  const text = results.map((r) => (r.pass ? "✅ " : "❌ ") + r.name + "\n" + r.detail).join("\n\n")
+  const text = buildFullText(results)
   try {
     await Pasteboard.setString(text)
     await Dialog.alert({ title: "已复制", message: "完整清单已在剪贴板，粘贴到备忘录或直接发给我就行。" })
   } catch (e) {
     await Dialog.alert({ title: "复制失败", message: String(e) })
   }
+}
+
+// 全文放进网页全屏打开：可以滑动，长按全选复制，不靠剪贴板也不靠日志
+async function openFullText(results: Result[]) {
+  const controller = new WebViewController()
+  const html = "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>body{font-family:monospace;font-size:13px;white-space:pre-wrap;word-break:break-word;padding:12px}</style></head><body>" + escapeHtml(buildFullText(results)) + "</body></html>"
+  await controller.loadHTML(html)
+  await controller.present({ fullscreen: true, navigationTitle: "探测结果" })
+  controller.dispose()
 }
 
 function Row({ r }: { r: Result }) {
@@ -311,13 +337,14 @@ function App({ results }: { results: Result[] }) {
       <VStack>
         <Text font="largeTitle" fontWeight={"bold"}>边界探测</Text>
         <Text font="caption">{pass}/{results.length} 通过。FAIL 也是答案，说明这条路走不通。</Text>
+        <Button title="打开全文（可滑动、可复制）" action={() => openFullText(results)} />
         <Button title="复制完整清单" action={() => copyAll(results)} />
         <Spacer />
         {results.map((r) => (
           <Row r={r} />
         ))}
         <Spacer />
-        <Text font="caption">点上面的按钮复制全部结果发我，不用一张张截图了。</Text>
+        <Text font="caption">点“打开全文”进网页，长按全选复制发我；复制按钮是备用的。</Text>
       </VStack>
     </NavigationStack>
   )
