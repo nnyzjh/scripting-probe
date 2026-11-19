@@ -1,7 +1,8 @@
-// Scripting 能力边界探测 v1.8（index.tsx）
-// v1.7 把按钮放到底下还没验。Noah 说：不要最上也不要最下，大概居中。
-// v1.8：状态行 + 三个按钮放中间——标题和网页框下面、结果清单上面，
-// 网页框缩到 300 高，打开第一屏就能看到按钮，不用翻到底也不用够顶上。
+// Scripting 能力边界探测 v1.9（index.tsx）
+// v1.8 刚推 1 分钟 Noah 就截了图，大概率还跑着缓存里的旧版。
+// 但按钮三番五次没反应，不能再靠点了。v1.9：打开就自动复制——
+// 不用点任何按钮，跑完直接去聊天里粘贴。复制和网页加载各一行状态，
+// 哪步行哪步不行，打开第一屏就看得见。
 
 import { Navigation, NavigationStack, VStack, Spacer, Text, Button, Script, WebView, useMemo, useEffect, useState } from "scripting"
 
@@ -316,33 +317,42 @@ function buildFullText(results: Result[]): string {
 function App({ results }: { results: Result[] }) {
   const pass = results.filter((r) => r.pass).length
   const [taps, setTaps] = useState(0)
-  const [status, setStatus] = useState("还没点过按钮")
+  const [copyStatus, setCopyStatus] = useState("正在自动复制…")
+  const [webStatus, setWebStatus] = useState("正在加载网页…")
   const html = useMemo(() => buildFullHtml(results), [results])
   const controller = useMemo(() => {
     if (typeof WebViewController === "undefined") return null
     return new WebViewController()
   }, [])
+  // 打开就自动复制全文，不用点按钮
   useEffect(() => {
-    if (!controller) { setStatus("WebViewController 不存在"); return }
-    controller.loadHTML(html).then((ok) => setStatus(ok ? "网页已加载" : "网页加载返回 false")).catch((e) => setStatus("网页加载失败：" + String(e)))
+    try {
+      Promise.resolve(Pasteboard.setString(buildFullText(results))).then(() => setCopyStatus("已自动复制，去聊天里粘贴")).catch((e) => setCopyStatus("自动复制失败：" + String(e)))
+    } catch (e) {
+      setCopyStatus("自动复制失败：" + String(e))
+    }
+  }, [])
+  useEffect(() => {
+    if (!controller) { setWebStatus("WebViewController 不存在"); return }
+    controller.loadHTML(html).then((ok) => setWebStatus(ok ? "网页已加载" : "网页加载返回 false")).catch((e) => setWebStatus("网页加载失败：" + String(e)))
   }, [controller, html])
   async function doCopy() {
-    setStatus("正在写剪贴板…")
+    setCopyStatus("正在写剪贴板…")
     try {
       await Pasteboard.setString(buildFullText(results))
-      setStatus("已复制，去别处粘贴试试")
+      setCopyStatus("已复制，去别处粘贴试试")
     } catch (e) {
-      setStatus("复制失败：" + String(e))
+      setCopyStatus("复制失败：" + String(e))
     }
   }
   async function reloadFullText() {
-    setStatus("正在加载网页…")
+    setWebStatus("正在加载网页…")
     try {
       if (!controller) throw new Error("WebViewController 不存在")
       const ok = await controller.loadHTML(html)
-      setStatus(ok ? "网页已加载" : "网页加载返回 false")
+      setWebStatus(ok ? "网页已加载" : "网页加载返回 false")
     } catch (e) {
-      setStatus("加载失败：" + String(e))
+      setWebStatus("加载失败：" + String(e))
     }
   }
   return (
@@ -355,7 +365,8 @@ function App({ results }: { results: Result[] }) {
         ) : (
           <Text font="caption">WebViewController 不存在，全文网页打不开，往下翻看分行清单。</Text>
         )}
-        <Text font="caption">状态：{status}</Text>
+        <Text font="caption">复制：{copyStatus}</Text>
+        <Text font="caption">网页：{webStatus}</Text>
         <Button title={"点我测试（已点 " + taps + " 次）"} action={() => setTaps(taps + 1)} />
         <Button title="一键复制全文" action={doCopy} />
         <Button title="重新加载全文" action={reloadFullText} />
