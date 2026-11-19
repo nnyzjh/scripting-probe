@@ -2,13 +2,27 @@
 
 一次测完 Scripting 到底能干什么、不能干什么。每一项都是 PASS/FAIL，FAIL 也是答案。
 
-## v1.0 结果（真机实测 8/10）
+## v1.1 结果（真机实测 11/12）
 
-通过：环境指纹、eval、new Function、fetch 远程 JS、动态 import 本地模块、fetch GitHub raw JSON、Uint8Array + Data、TextEncoder。
+通过：环境指纹、eval、new Function、fetch 远程 JS、eval 远程代码（在 module.exports 上找到 JSZip）、JSZip 压缩再解压、动态 import 本地模块、require 本地 CJS 模块、fetch GitHub raw JSON、Uint8Array + Data、TextEncoder。
 
-两项失败其实是一个原因：JSZip 的 UMD 包在 Scripting 里走了 CommonJS 分支（运行时有 require / module / process），挂在了 module.exports 上，没挂 globalThis。v1.1 改成两处都找。
+唯一失败：动态 import 远程 ESM（Module "https://..." not found，加载器只认本地文件）。
 
-## 测什么（index.tsx，v1.1 共 12 项）
+## v1.2 新增（深挖运行时，共 23 项）
+
+13. **scriptingCapabilities**：全文打出来，看官方到底开放了哪些能力
+14. **process.version**：版本 + versions 表，看引擎是什么版本
+15. **platform/arch/title**：平台、架构、标题、browser 字段的值
+16. **process.env 键名**：只列键名，不碰值
+17. **process.argv**：启动参数
+18. **process.cwd()**：当前工作目录
+19. **process.binding**：只看类型，不调用
+20. **scripting 模块导出**：`import("scripting")` 的全部导出清单，看 API 全貌
+21. **globalThis 键名**：全局上都挂了什么
+22. **process.hrtime()**：高精度时间能不能调
+23. **process.nextTick 执行**：回调跑不跑
+
+## 测什么（index.tsx，v1.0/v1.1 共 12 项）
 
 1. **环境指纹**：eval / Function / globalThis / window / process / require / Blob / TextEncoder / FileManager / Keychain / fetch 都在不在，外加 process 的键名
 2. **eval('1+1')**：运行时能不能执行代码字符串

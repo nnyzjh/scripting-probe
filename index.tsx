@@ -1,7 +1,7 @@
-// Scripting 能力边界探测 v1.1（index.tsx）
-// v1.0 结果 8/10：两项失败其实是一个原因——JSZip 的 UMD 包在 Scripting 里走了
-// CommonJS 分支，挂在了 module.exports 上，没挂 globalThis。v1.1 改成两处都找，
-// 再加 require 本地 CJS 模块、动态 import 远程 ESM 两项新探测。
+// Scripting 能力边界探测 v1.2（index.tsx）
+// v1.1 结果 11/12：JSZip、require 都通了，只剩远程 ESM import 不认 URL。
+// v1.2 深挖运行时本身：process.scriptingCapabilities 全文、process 的版本/平台/
+// 环境变量键名（只列键名，不碰值）、scripting 模块的导出清单、globalThis 键名。
 
 import { Navigation, NavigationStack, VStack, Spacer, Text, Script } from "scripting"
 
@@ -11,6 +11,18 @@ const JSZIP_URL = "https://cdn.jsdelivr.net/npm/jszip@3.10.1/dist/jszip.min.js"
 const RAW_JSON_URL = "https://raw.githubusercontent.com/nnyzjh/cloudflare-scripting/main/script.json"
 
 let JSZipCtor: any = null
+
+function cap(s: string, n: number): string {
+  return s.length > n ? s.slice(0, n) + "…（截断）" : s
+}
+
+function jdump(v: any, n = 1200): string {
+  try {
+    return cap(JSON.stringify(v), n)
+  } catch (e) {
+    return "无法序列化：" + String(e)
+  }
+}
 
 async function one(name: string, fn: () => any): Promise<Result> {
   try {
@@ -24,7 +36,7 @@ async function one(name: string, fn: () => any): Promise<Result> {
 async function runTests(): Promise<Result[]> {
   const out: Result[] = []
 
-  // 1. 环境指纹：只看有什么，不判断
+  // 1. 环境指纹
   out.push({
     name: "环境指纹",
     pass: true,
@@ -70,7 +82,7 @@ async function runTests(): Promise<Result[]> {
     return jszipText.length + " 字节"
   }))
 
-  // 5. eval 远程代码（v1.1：UMD 在有 module 的环境走 CommonJS 分支，两处都找）
+  // 5. eval 远程代码（UMD 在有 module 的环境走 CommonJS 分支，两处都找）
   out.push(await one("eval 远程代码（JSZip）", () => {
     if (!jszipText) throw new Error("前面 fetch 失败，没拿到代码")
     eval(jszipText)
@@ -102,7 +114,7 @@ async function runTests(): Promise<Result[]> {
     return "hello.js 加载成功"
   }))
 
-  // 8. require 本地 CJS 模块（v1.1 新增）
+  // 8. require 本地 CJS 模块
   out.push(await one("require 本地 CJS 模块", () => {
     const m: any = require("./hello-cjs.js")
     const fn = m.hello || (m.default && m.default.hello)
@@ -111,7 +123,7 @@ async function runTests(): Promise<Result[]> {
     return "hello-cjs.js 加载成功"
   }))
 
-  // 9. 动态 import 远程 ESM（v1.1 新增）
+  // 9. 动态 import 远程 ESM
   out.push(await one("动态 import 远程 ESM", async () => {
     const m: any = await import("https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm")
     const C = m.default || m.JSZip
@@ -144,6 +156,75 @@ async function runTests(): Promise<Result[]> {
     const s = dec.decode(enc.encode("你好 Scripting"))
     if (s !== "你好 Scripting") throw new Error("编解码不一致")
     return "中文编解码正常"
+  }))
+
+  // ---- v1.2 新增：深挖运行时 ----
+  const P = process as any
+
+  // 13. scriptingCapabilities 全文
+  out.push(await one("scriptingCapabilities", () => {
+    if (typeof P.scriptingCapabilities === "undefined") throw new Error("没有这个字段")
+    return jdump(P.scriptingCapabilities, 1500)
+  }))
+
+  // 14. process.version / versions
+  out.push(await one("process.version", () => {
+    return "version=" + P.version + " versions=" + jdump(P.versions, 600)
+  }))
+
+  // 15. platform / arch / title / browser
+  out.push(await one("platform/arch/title", () => {
+    return "platform=" + P.platform + " arch=" + P.arch + " title=" + P.title + " browser=" + P.browser
+  }))
+
+  // 16. env 键名（只列键名，不碰值）
+  out.push(await one("process.env 键名", () => {
+    const keys = Object.keys(P.env || {})
+    return keys.length ? cap(keys.join(","), 800) : "空"
+  }))
+
+  // 17. argv
+  out.push(await one("process.argv", () => jdump(P.argv, 800)))
+
+  // 18. cwd
+  out.push(await one("process.cwd()", () => {
+    if (typeof P.cwd !== "function") throw new Error("cwd 不是函数")
+    return String(P.cwd())
+  }))
+
+  // 19. binding（只看类型，不调用）
+  out.push(await one("process.binding", () => {
+    const b = P.binding
+    return "typeof=" + typeof b + (b && typeof b === "object" ? " keys=" + cap(Object.keys(b).join(","), 400) : "")
+  }))
+
+  // 20. scripting 模块导出清单
+  out.push(await one("scripting 模块导出", async () => {
+    const m: any = await import("scripting")
+    const keys = Object.keys(m).sort()
+    return keys.length + " 个：" + cap(keys.join(","), 1000)
+  }))
+
+  // 21. globalThis 键名
+  out.push(await one("globalThis 键名", () => {
+    const keys = Object.keys(globalThis)
+    return keys.length + " 个：" + cap(keys.join(","), 1000)
+  }))
+
+  // 22. hrtime
+  out.push(await one("process.hrtime()", () => {
+    if (typeof P.hrtime !== "function") throw new Error("不是函数")
+    return jdump(P.hrtime(), 200)
+  }))
+
+  // 23. nextTick
+  out.push(await one("process.nextTick 执行", async () => {
+    if (typeof P.nextTick !== "function") throw new Error("不是函数")
+    let ran = false
+    P.nextTick(() => { ran = true })
+    await new Promise<void>((resolve) => setTimeout(resolve, 100))
+    if (!ran) throw new Error("回调没跑")
+    return "回调跑了"
   }))
 
   return out
