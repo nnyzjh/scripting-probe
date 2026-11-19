@@ -1,7 +1,7 @@
-// Scripting 能力边界探测 v1.7（index.tsx）
-// v1.6 的状态行 + 点按计数器还没验出结果——Noah 说按钮可能放太高了，点不到。
-// v1.7：把状态行和三个按钮都移到页面最底下（结果清单之后），上面只留标题、
-// 通过数和网页框。往下翻到底就能点到，不用再够顶上的按钮。
+// Scripting 能力边界探测 v1.8（index.tsx）
+// v1.7 把按钮放到底下还没验。Noah 说：不要最上也不要最下，大概居中。
+// v1.8：状态行 + 三个按钮放中间——标题和网页框下面、结果清单上面，
+// 网页框缩到 300 高，打开第一屏就能看到按钮，不用翻到底也不用够顶上。
 
 import { Navigation, NavigationStack, VStack, Spacer, Text, Button, Script, WebView, useMemo, useEffect, useState } from "scripting"
 
@@ -351,19 +351,19 @@ function App({ results }: { results: Result[] }) {
         <Text font="largeTitle" fontWeight={"bold"}>边界探测</Text>
         <Text font="caption">{pass}/{results.length} 通过。FAIL 也是答案，说明这条路走不通。</Text>
         {controller ? (
-          <WebView controller={controller} frame={{ height: 400 }} />
+          <WebView controller={controller} frame={{ height: 300 }} />
         ) : (
           <Text font="caption">WebViewController 不存在，全文网页打不开，往下翻看分行清单。</Text>
         )}
+        <Text font="caption">状态：{status}</Text>
+        <Button title={"点我测试（已点 " + taps + " 次）"} action={() => setTaps(taps + 1)} />
+        <Button title="一键复制全文" action={doCopy} />
+        <Button title="重新加载全文" action={reloadFullText} />
         <Spacer />
         {results.map((r) => (
           <Row r={r} />
         ))}
         <Spacer />
-        <Text font="caption">状态：{status}</Text>
-        <Button title={"点我测试（已点 " + taps + " 次）"} action={() => setTaps(taps + 1)} />
-        <Button title="复制完整清单" action={doCopy} />
-        <Button title="重新加载全文" action={reloadFullText} />
         <Text font="caption">上面的网页可以滑动，长按全选复制发我；复制按钮是备用的。</Text>
       </VStack>
     </NavigationStack>

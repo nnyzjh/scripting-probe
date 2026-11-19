@@ -12,6 +12,11 @@
 
 唯一失败仍是动态 import 远程 ESM。运行时真相：engine JavaScriptCore，platform ios，nodeCompatibilityBaseline 20.0.0，process.version v20.0.0，versions.scripting "node-compat-2"——JSC 之上仿 Node 20 的兼容层。platform=ios，arch=arm64，title=browser，browser=true；argv=[]；cwd()=/；process.binding 是函数；hrtime/nextTick 都能用。scripting 模块导出 219 个，globalThis 键名 326 个。
 
+## v1.8 新增（按钮放中间）
+
+- **状态行 + 三个按钮放中间**（标题和网页框下面、结果清单上面），不要最上也不要最下；网页框缩到 300 高，打开第一屏就能看到按钮
+- “复制完整清单”改名“一键复制全文”
+
 ## v1.7 新增（按钮移到最底下）
 
 - **状态行 + 三个按钮移到页面最底下**（结果清单之后）：顶上的按钮可能够不着，翻到底就能点到

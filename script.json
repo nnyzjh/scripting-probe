@@ -1,1 +1,1 @@
-{"color":"purple","description":"探测 Scripting 的能力边界：eval、动态 import、远程代码、JSZip、Python 入口、运行时深挖、完整清单展开、内嵌网页全文、交互诊断","entry":"index.tsx","icon":"flask.fill","name":"边界探测","runInApp":false,"version":"1.7.0"}
+{"color":"purple","description":"探测 Scripting 的能力边界：eval、动态 import、远程代码、JSZip、Python 入口、运行时深挖、完整清单展开、内嵌网页全文、交互诊断","entry":"index.tsx","icon":"flask.fill","name":"边界探测","runInApp":false,"version":"1.8.0"}
