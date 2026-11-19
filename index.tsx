@@ -1,11 +1,13 @@
-// Scripting 能力边界探测 v1.4（index.tsx）
+// Scripting 能力边界探测 v1.5（index.tsx）
 // v1.2 结果 22/23：运行时是 JavaScriptCore + 仿 Node 20 兼容层（node-compat-2）。
 // v1.3 把完整清单展开：scriptingCapabilities 按 key 拆行，导出 219 个、全局 326 个、
 // env 键名全部按 12 个一组分行显示。
-// v1.4：加“打开全文”按钮——结果以网页形式全屏打开，可以滑动、长按全选复制，
-// 不用再靠剪贴板按钮和日志；另把编辑器里那几行红色类型报错消掉（见下面的 declare）。
+// v1.4 的教训：全屏 present 弹新窗口点着没反应，复制按钮也没反应。
+// v1.5：全文改成内嵌在页面里的 WebView（不用弹窗口），另加两项探测——
+// WebViewController、Pasteboard、Dialog 到底存不存在，失败要在界面上看得见，
+// 不再靠日志猜。URL import 的红字改成把 URL 放变量里，编辑器不再报错。
 
-import { Navigation, NavigationStack, VStack, Spacer, Text, Button, Script } from "scripting"
+import { Navigation, NavigationStack, VStack, Spacer, Text, Button, Script, WebView, useMemo, useEffect } from "scripting"
 
 // 编辑器的类型检查器不认识这几个全局，但运行时它们都存在（v1.2 实测通过），
 // 只是类型声明里没有。declare 只影响编辑器显示，编译后不存在，不影响运行。
@@ -13,6 +15,8 @@ declare const window: any
 declare const self: any
 declare const module: any
 declare const WebViewController: any
+declare const Pasteboard: any
+declare const Dialog: any
 
 type Result = { name: string; pass: boolean; detail: string }
 
@@ -138,10 +142,10 @@ async function runTests(): Promise<Result[]> {
     return "hello-cjs.js 加载成功"
   }))
 
-  // 9. 动态 import 远程 ESM
-  // @ts-ignore：编辑器的类型检查器解析不了 URL 模块，运行时照样跑（这项预期失败）
+  // 9. 动态 import 远程 ESM（URL 放变量里，编辑器就不再报“找不到模块”）
   out.push(await one("动态 import 远程 ESM", async () => {
-    const m: any = await import("https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm")
+    const esmUrl = "https://cdn.jsdelivr.net/npm/jszip@3.10.1/+esm"
+    const m: any = await import(esmUrl)
     const C = m.default || m.JSZip
     if (typeof C !== "function") throw new Error("拿到的不是 JSZip 构造器")
     return "远程 ESM 直接 import 成功"
@@ -242,6 +246,17 @@ async function runTests(): Promise<Result[]> {
     return "回调跑了"
   }))
 
+  // 24. WebViewController 存在吗（v1.4 的“打开全文”按钮点着没反应，查是不是它不存在）
+  out.push(await one("WebViewController 存在", () => {
+    if (typeof WebViewController === "undefined") throw new Error("没有这个全局")
+    return "typeof=" + typeof WebViewController
+  }))
+
+  // 25. Pasteboard / Dialog 存在吗（v1.3 的复制按钮没反应，查是不是它们不存在）
+  out.push(await one("Pasteboard/Dialog 存在", () => {
+    return "Pasteboard:" + typeof Pasteboard + " Dialog:" + typeof Dialog
+  }))
+
   // ---- v1.3 新增：展开完整清单 ----
   // scriptingCapabilities 按 key 拆行
   try {
@@ -312,13 +327,9 @@ async function copyAll(results: Result[]) {
   }
 }
 
-// 全文放进网页全屏打开：可以滑动，长按全选复制，不靠剪贴板也不靠日志
-async function openFullText(results: Result[]) {
-  const controller = new WebViewController()
-  const html = "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>body{font-family:monospace;font-size:13px;white-space:pre-wrap;word-break:break-word;padding:12px}</style></head><body>" + escapeHtml(buildFullText(results)) + "</body></html>"
-  await controller.loadHTML(html)
-  await controller.present({ fullscreen: true, navigationTitle: "探测结果" })
-  controller.dispose()
+// 全文 HTML（内嵌网页用，不再弹新窗口——v1.4 的全屏 present 点着没反应）
+function buildFullHtml(results: Result[]): string {
+  return "<!DOCTYPE html><html><head><meta name=\"viewport\" content=\"width=device-width, initial-scale=1\"><style>body{font-family:monospace;font-size:13px;white-space:pre-wrap;word-break:break-word;padding:12px}</style></head><body>" + escapeHtml(buildFullText(results)) + "</body></html>"
 }
 
 function Row({ r }: { r: Result }) {
@@ -332,19 +343,40 @@ function Row({ r }: { r: Result }) {
 
 function App({ results }: { results: Result[] }) {
   const pass = results.filter((r) => r.pass).length
+  const html = useMemo(() => buildFullHtml(results), [results])
+  const controller = useMemo(() => {
+    if (typeof WebViewController === "undefined") return null
+    return new WebViewController()
+  }, [])
+  useEffect(() => {
+    if (controller) controller.loadHTML(html)
+  }, [controller, html])
+  async function reloadFullText() {
+    try {
+      if (!controller) throw new Error("WebViewController 不存在")
+      await controller.loadHTML(html)
+    } catch (e) {
+      await Dialog.alert({ title: "加载失败", message: String(e) })
+    }
+  }
   return (
     <NavigationStack>
       <VStack>
         <Text font="largeTitle" fontWeight={"bold"}>边界探测</Text>
         <Text font="caption">{pass}/{results.length} 通过。FAIL 也是答案，说明这条路走不通。</Text>
-        <Button title="打开全文（可滑动、可复制）" action={() => openFullText(results)} />
         <Button title="复制完整清单" action={() => copyAll(results)} />
+        <Button title="重新加载全文" action={reloadFullText} />
+        {controller ? (
+          <WebView controller={controller} frame={{ height: 500 }} />
+        ) : (
+          <Text font="caption">WebViewController 不存在，全文网页打不开，往下翻看分行清单。</Text>
+        )}
         <Spacer />
         {results.map((r) => (
           <Row r={r} />
         ))}
         <Spacer />
-        <Text font="caption">点“打开全文”进网页，长按全选复制发我；复制按钮是备用的。</Text>
+        <Text font="caption">上面的网页可以滑动，长按全选复制发我；复制按钮是备用的。</Text>
       </VStack>
     </NavigationStack>
   )

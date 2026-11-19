@@ -12,6 +12,12 @@
 
 唯一失败仍是动态 import 远程 ESM。运行时真相：engine JavaScriptCore，platform ios，nodeCompatibilityBaseline 20.0.0，process.version v20.0.0，versions.scripting "node-compat-2"——JSC 之上仿 Node 20 的兼容层。platform=ios，arch=arm64，title=browser，browser=true；argv=[]；cwd()=/；process.binding 是函数；hrtime/nextTick 都能用。scripting 模块导出 219 个，globalThis 键名 326 个。
 
+## v1.5 新增（内嵌网页全文 + 查按钮失灵原因）
+
+- **全文改成内嵌 WebView**：直接嵌在页面里，不再弹全屏新窗口（v1.4 的 present 点着没反应）；打开自动加载，可以滑动、长按全选复制
+- **新增两项探测**：WebViewController、Pasteboard、Dialog 到底存不存在——按钮没反应的原因要在界面上看得见，不再靠日志猜
+- **URL import 红字根治**：URL 放变量里再 import，编辑器不再报“找不到模块”（v1.4 的 `// @ts-ignore` 放错了行，只管下一行，不管 import 那行）
+
 ## v1.4 新增（网页全文 + 消红字）
 
 - **打开全文按钮**：结果以网页形式全屏打开，可以滑动、长按全选复制，不靠剪贴板按钮也不靠日志
